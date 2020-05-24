@@ -201,6 +201,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
+	int skip = 0;
+
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     ORB_SLAM2::System SLAM(argv[1], argv[2], ORB_SLAM2::System::MONOCULAR, true);
 
@@ -228,6 +230,15 @@ int main(int argc, char **argv)
     loadImageList(argv[4], iListData);
     //cout<<"loading image finished"<<endl;
     //double e = pow(10.0,-9);
+
+	if (skip != 0)
+	{
+		
+		std::cout << "Skipping first " << skip << " images.. ";
+		std::cout << << iListData.size() << " -> ";
+		iListData.erase(iListData.begin(), iListData.begin() + skip);
+		std::cout << iListData.size() << std::endl;
+	}
 //
 //为了使allimuData中的imu的第一帧和iListData中图像的第一帧对齐，去除了ListData中图像的第一帧时刻之前的imu数据
     double ImgFirstTime = iListData[0].timeStamp;
@@ -235,16 +246,19 @@ int main(int argc, char **argv)
     {
         if (ImgFirstTime - allimuData[j]._t < 1 / 1e4)
         {
-
             allimuData.erase(allimuData.begin(), allimuData.begin() + j);
             break;
         }
     }
 
     cout << std::setprecision(13) << "first Img time, first Imu timeStamp: " << iListData[0].timeStamp << ",     " << allimuData[0]._t << endl;
-    if (iListData[0].timeStamp - allimuData[0]._t > 1 / 1e4)
+    
+	//first imu capture time must be after first img capture time
+	if (iListData[0].timeStamp - allimuData[0]._t > 1 / 1e4)
+	{
         cerr << "the timestamp of first Imu is not equal to the first Img!" << endl;
-
+		return 0;
+	}
 
 
     //cout<<iListData.size()<<"------------"<<allimuData.size()<<endl;
@@ -257,14 +271,13 @@ int main(int argc, char **argv)
     int nImages = iListData.size();
     if (nImages < 1)
     {
-        cerr << endl << "There is no enough images." << endl;
+        cerr << endl << "There are not enough images." << endl;
+		return 0;
     }
-
-
-
 
     for (std::size_t j = 0; j < iListData.size() - 1; j++)
     {
+
         std::vector<ORB_SLAM2::IMUData> vimuData;
         /*
         *imu 的频率是200HZ 图像帧率是20HZ 所以简单的认为每一帧图像对应10个imu数据
@@ -334,7 +347,10 @@ int main(int argc, char **argv)
         //SLAM.TrackMonoVI(im, vimuData, j*0.05- imageMsgDelaySec);
 
        // cout<< std::setprecision(13) <<"Now is Tracking Img at time: "<< iListData[j + 1].timeStamp<<endl;
+
         SLAM.TrackMonoVI(im, vimuData, iListData[j + 1].timeStamp - imageMsgDelaySec);
+
+
 
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
         double ttrack = std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
